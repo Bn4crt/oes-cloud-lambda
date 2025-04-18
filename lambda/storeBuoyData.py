@@ -3,11 +3,14 @@ import boto3
 import datetime
 from decimal import Decimal
 
+
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('BuoyData')
 
+
 s3 = boto3.client('s3')
 bucket_name = 'oes-buoy-storage-bilal'
+
 
 def lambda_handler(event, context):
     try:
@@ -20,6 +23,7 @@ def lambda_handler(event, context):
     wave_height = Decimal(str(data.get('wave_height')))
     timestamp = datetime.datetime.utcnow().isoformat()
 
+
     # Save to DynamoDB
     table.put_item(Item={
         'buoy_id': buoy_id,
@@ -27,6 +31,7 @@ def lambda_handler(event, context):
         'temperature': temperature,
         'wave_height': wave_height
     })
+
 
     # Save to S3
     file_name = f"{buoy_id}_{timestamp}.json"
