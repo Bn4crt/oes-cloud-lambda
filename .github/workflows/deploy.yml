@@ -26,5 +26,5 @@ jobs:
 
       - name: Deploy to Lambda
         run: |
-          zip function.zip storeBuoyData.py
+          zip function.zip lambda_function.py
           aws lambda update-function-code --function-name storeBuoyData --zip-file fileb://function.zip
