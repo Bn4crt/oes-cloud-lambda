@@ -25,6 +25,7 @@ jobs:
           aws configure set region eu-north-1
 
       - name: Deploy to Lambda
-        run: |
-          zip function.zip lambda/storeBuoyData.py
-          aws lambda update-function-code --function-name storeBuoyData --zip-file fileb://function.zip
+  	run: |
+    	  zip function.zip storeBuoyData.py
+    	  aws lambda update-function-code --function-name storeBuoyData --zip-file fileb://function.zip
+
