@@ -147,10 +147,8 @@
     function redirectToCognito() {
   const loginUrl = `https://${domain}/login?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email+openid+phone`;
   window.location.href = loginUrl;
-  sessionStorage.setItem("id_token", idToken);
-  sessionStorage.getItem("id_token");
 
-}
+  }
 
     function logout() {
   idToken = null;
@@ -205,8 +203,15 @@
   idToken = hashParams.get('id_token');
 
   if (!idToken) {
-    updateUI(false);
-    return;
+    // Check if there's a saved token from earlier session
+    idToken = sessionStorage.getItem("id_token");
+    if (!idToken) {
+      updateUI(false);
+      return;
+    }
+  } else {
+    // Save fresh token in sessionStorage
+    sessionStorage.setItem("id_token", idToken);
   }
 
   try {
