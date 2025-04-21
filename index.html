@@ -149,7 +149,7 @@
   window.location.href = loginUrl;
 }
 
-    function logout() {
+function logout() {
   idToken = null;
   localStorage.clear();
   sessionStorage.clear();
@@ -157,13 +157,15 @@
   updateUI(false);
   document.getElementById('alerts').textContent = '👋 Logging out...';
 
-  const logoutRedirectUri = `${redirectUri}?logged_out=true`;
+  const logoutRedirectUri = 'https://d25xenu5by9uag.cloudfront.net'; // MUST MATCH EXACTLY what’s whitelisted in Cognito
   const logoutUrl = `https://${domain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
 
+  // Short delay to show logout message before redirect
   setTimeout(() => {
     window.location.href = logoutUrl;
-  }, 500); // Give UI time to reflect changes
+  }, 500);
 }
+
 
 
     function updateUI(isLoggedIn, email = '') {
