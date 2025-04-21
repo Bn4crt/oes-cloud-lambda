@@ -145,20 +145,26 @@
     let tempChartInstance = null;
 
     function redirectToCognito() {
-      const loginUrl = `https://${domain}/login?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email+openid+phone`;
-      window.location.href = loginUrl;
-    }
+  const loginUrl = `https://${domain}/login?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email+openid+phone`;
+  window.location.href = loginUrl;
+}
 
     function logout() {
-      idToken = null;
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.hash = '';
+  idToken = null;
+  localStorage.clear();
+  sessionStorage.clear();
+  window.location.hash = '';
+  updateUI(false);
+  document.getElementById('alerts').textContent = '👋 Logging out...';
 
-      const logoutRedirectUri = `${redirectUri}?logged_out=true`;
-      const logoutUrl = `https://${domain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
-      window.location.href = logoutUrl;
-    }
+  const logoutRedirectUri = `${redirectUri}?logged_out=true`;
+  const logoutUrl = `https://${domain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
+
+  setTimeout(() => {
+    window.location.href = logoutUrl;
+  }, 500); // Give UI time to reflect changes
+}
+
 
     function updateUI(isLoggedIn, email = '') {
       const loginBtn = document.getElementById('loginBtn');
@@ -179,36 +185,37 @@
     }
 
     function parseTokenFromUrl() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const justLoggedOut = urlParams.get("logged_out") === "true";
+  const urlParams = new URLSearchParams(window.location.search);
+  const justLoggedOut = urlParams.get("logged_out") === "true";
 
-      if (justLoggedOut) {
-        updateUI(false);
-        document.getElementById('alerts').textContent = '👋 You have been logged out.';
-        window.history.replaceState({}, document.title, redirectUri);
-        return;
-      }
+  if (justLoggedOut) {
+    updateUI(false);
+    document.getElementById('alerts').textContent = '👋 You have been logged out.';
+    window.history.replaceState({}, document.title, redirectUri); // Clears query param
+    return;
+  }
 
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      idToken = hashParams.get('id_token');
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  idToken = hashParams.get('id_token');
 
-      if (!idToken) {
-        updateUI(false);
-        return;
-      }
+  if (!idToken) {
+    updateUI(false);
+    return;
+  }
 
-      try {
-        const decoded = jwt_decode(idToken);
-        const email = decoded.email || decoded.username || 'Unknown';
-        updateUI(true, email);
-      } catch (err) {
-        console.error('JWT decoding failed:', err);
-        updateUI(false);
-        document.getElementById('alerts').textContent = '❌ Login token could not be verified.';
-      }
+  try {
+    const decoded = jwt_decode(idToken);
+    const email = decoded.email || decoded.username || 'Unknown';
+    updateUI(true, email);
+    window.history.replaceState({}, document.title, redirectUri); // Clear hash
+  } catch (err) {
+    console.error('JWT decoding failed:', err);
+    updateUI(false);
+    document.getElementById('alerts').textContent = '❌ Login token could not be verified.';
+    window.history.replaceState({}, document.title, redirectUri); // Clear hash
+  }
+}
 
-      window.history.replaceState({}, document.title, redirectUri);
-    }
 
     function loadData() {
       if (!idToken) {
