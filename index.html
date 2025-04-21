@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌊 OES Monitoring Dashboard</title>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #dcfce7;
+      color: #09335d;
+    }
+    .overlay {
+      background-color: rgba(6, 47, 82, 0.85);
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+    .hero {
+      background: rgba(0, 0, 50, 0.5);
+      padding: 60px 20px 40px;
+      text-align: center;
+      color: white;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+      position: relative;
+    }
+    .hero h1 {
+      font-size: 2.8em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+    }
+    .login-btn, .logout-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .login-btn { background-color: #0a84ff; }
+    .login-btn:hover { background-color: #0648a0; }
+    .logout-btn {
+      background-color: #e11d48;
+      right: 120px;
+    }
+    .logout-btn:hover { background-color: #9f1239; }
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      padding: 30px 20px;
+      text-align: center;
+      background: rgba(249, 246, 246, 0.985);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      margin-top: -30px;
+    }
+    #alerts {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 20px 0;
+      transition: all 0.4s ease;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .critical {
+      animation: blink 1s infinite;
+      color: #cc0000;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    #refreshBtn {
+      padding: 10px 25px;
+      margin-bottom: 30px;
+      font-size: 16px;
+      background-color: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    #refreshBtn:hover { background-color: #030a46; }
+    .chart-card {
+      background: #bdbec2;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 40px auto;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+      opacity: 0;
+      transform: translateY(40px);
+      transition: all 0.8s ease;
+    }
+    .visible {
+      opacity: 1 !important;
+      transform: translateY(0) !important;
+    }
+    canvas {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 1.8em; }
+      .container {
+        margin-top: 0;
+        padding: 20px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <div class="hero">
+      <h1>🌊 OES Buoy Monitoring Dashboard</h1>
+      <button class="login-btn" id="loginBtn" onclick="redirectToCognito()">🔐 Login</button>
+      <button class="logout-btn" id="logoutBtn" onclick="logout()" style="display: none;">🚪 Logout</button>
+    </div>
+
+    <div class="container">
+      <p>Live monitoring of wave height and water temperature collected from offshore buoys. Stay informed on critical changes in ocean conditions in real-time.</p>
+      <div id="alerts" aria-live="polite">Loading data...</div>
+      <button id="refreshBtn" onclick="loadData()">🔄 Refresh Data</button>
+      <div class="chart-card"><canvas id="waveChart"></canvas></div>
+      <div class="chart-card"><canvas id="tempChart"></canvas></div>
+    </div>
+  </div>
+
+  <script>
+    localStorage.clear();
+    const apiUrl = 'https://3gwhstp17h.execute-api.eu-north-1.amazonaws.com/dev/getData';
+    const domain = 'eu-north-1scocjf5ly.auth.eu-north-1.amazoncognito.com';
+    const clientId = '4i4brug1djovbgnnmbnt9a8f7e';
+    const redirectUri = 'https://d25xenu5by9uag.cloudfront.net';
+
+    let idToken = null;
+    let waveChartInstance = null;
+    let tempChartInstance = null;
+
+    function redirectToCognito() {
+      const loginUrl = `https://${domain}/login?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email+openid+phone`;
+      window.location.href = loginUrl;
+    }
+
+    function logout() {
+      idToken = null;
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.hash = '';
+
+      const logoutRedirectUri = `${redirectUri}?logged_out=true`;
+      const logoutUrl = `https://${domain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
+      window.location.href = logoutUrl;
+    }
+
+    function updateUI(isLoggedIn, email = '') {
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const alerts = document.getElementById('alerts');
+
+      if (isLoggedIn) {
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+        alerts.innerHTML = `🔐 Logged in as: <strong>${email}</strong>`;
+      } else {
+        loginBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'none';
+        alerts.innerHTML = '';
+      }
+
+      alerts.classList.add('visible');
+    }
+
+    function parseTokenFromUrl() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const justLoggedOut = urlParams.get("logged_out") === "true";
+
+      if (justLoggedOut) {
+        updateUI(false);
+        document.getElementById('alerts').textContent = '👋 You have been logged out.';
+        window.history.replaceState({}, document.title, redirectUri);
+        return;
+      }
+
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      idToken = hashParams.get('id_token');
+
+      if (!idToken) {
+        updateUI(false);
+        return;
+      }
+
+      try {
+        const decoded = jwt_decode(idToken);
+        const email = decoded.email || decoded.username || 'Unknown';
+        updateUI(true, email);
+      } catch (err) {
+        console.error('JWT decoding failed:', err);
+        updateUI(false);
+        document.getElementById('alerts').textContent = '❌ Login token could not be verified.';
+      }
+
+      window.history.replaceState({}, document.title, redirectUri);
+    }
+
+    function loadData() {
+      if (!idToken) {
+        document.getElementById('alerts').textContent = '❌ Not authenticated. Please login.';
+        return;
+      }
+
+      try {
+        jwt_decode(idToken);
+      } catch {
+        document.getElementById('alerts').textContent = '❌ Invalid or expired token. Please login again.';
+        updateUI(false);
+        return;
+      }
+
+      fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      })
+      .then(res => res.json())
+      .then(res => {
+        const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body;
+        if (!Array.isArray(data)) {
+          document.getElementById('alerts').textContent = '❌ Error: Invalid data format.';
+          return;
+        }
+
+        data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const labels = data.map(e => new Date(e.timestamp).toLocaleString());
+        const waveData = data.map(e => parseFloat(e.wave_height));
+        const tempData = data.map(e => parseFloat(e.temperature));
+        const latest = data[data.length - 1];
+
+        const alertBox = document.getElementById('alerts');
+        alertBox.innerHTML = (latest.wave_height > 3.0)
+          ? `⚠️ <span class="critical">ALERT: Wave height is CRITICAL (${latest.wave_height} m)</span>`
+          : `✅ Wave height is normal (${latest.wave_height} m)`;
+        alertBox.classList.add('visible');
+
+        if (waveChartInstance) waveChartInstance.destroy();
+        if (tempChartInstance) tempChartInstance.destroy();
+
+        waveChartInstance = new Chart(document.getElementById('waveChart'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{ label: 'Wave Height (m)', data: waveData, borderColor: 'blue', backgroundColor: 'rgba(0,0,255,0.1)', fill: true, tension: 0.3 }]
+          },
+          options: {
+            responsive: true,
+            plugins: { title: { display: true, text: 'Wave Height Over Time' } },
+            scales: {
+              x: { title: { display: true, text: 'Timestamp' } },
+              y: { title: { display: true, text: 'Meters' }, suggestedMin: 0, suggestedMax: 5 }
+            }
+          }
+        });
+
+        tempChartInstance = new Chart(document.getElementById('tempChart'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{ label: 'Temperature (°C)', data: tempData, borderColor: 'orange', backgroundColor: 'rgba(255,165,0,0.1)', fill: true, tension: 0.3 }]
+          },
+          options: {
+            responsive: true,
+            plugins: { title: { display: true, text: 'Temperature Over Time' } },
+            scales: {
+              x: { title: { display: true, text: 'Timestamp' } },
+              y: { title: { display: true, text: '°C' }, suggestedMin: 10, suggestedMax: 30 }
+            }
+          }
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById('alerts').textContent = '❌ Failed to load data.';
+      });
+    }
+
+    parseTokenFromUrl();
+    if (idToken) loadData();
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add("visible");
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.chart-card, #alerts').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
