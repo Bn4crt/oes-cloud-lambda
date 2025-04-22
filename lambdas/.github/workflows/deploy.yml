@@ -37,16 +37,25 @@ jobs:
         for dir in getBuoyData storeBuoyData AutoSubscribeToSNS; do
           echo "🚀 Deploying Lambda: $dir"
           cd "$dir"
-          
+
           if [ -f lambda_function.py ]; then
+            echo "📂 Contents of $dir/lambda_function.py:"
+            cat lambda_function.py
+
+            echo "📦 Zipping..."
             rm -f function.zip
             zip -r function.zip lambda_function.py > /dev/null
+
+            echo "☁️ Updating AWS Lambda..."
             aws lambda update-function-code \
               --function-name "$dir" \
-              --zip-file fileb://function.zip
-            echo "✅ $dir deployed!"
+              --zip-file fileb://function.zip \
+              --region ${{ secrets.AWS_REGION }}
+
+            echo "✅ $dir deployed successfully!"
           else
             echo "❌ Error: lambda_function.py not found in $dir"
+            exit 1
           fi
 
           cd ..

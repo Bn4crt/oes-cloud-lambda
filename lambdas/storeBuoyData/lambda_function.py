@@ -11,7 +11,7 @@ s3 = boto3.client('s3')
 bucket_name = 'oes-buoy-storage-bilal'
 
 sns = boto3.client('sns')
-sns_topic_arn = 'arn:aws:sns:eu-north-1:123456789012:BuoyAlerts'
+sns_topic_arn = 'arn:aws:sns:eu-north-1:600627365021:BuoyAlerts'
 
 
 def lambda_handler(event, context):
