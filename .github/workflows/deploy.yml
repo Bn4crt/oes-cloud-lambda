@@ -1,30 +1,55 @@
-name: Deploy Lambda
+name: 🚀 Deploy OES App to S3 + Lambda + Invalidate CloudFront
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+    - name: 🧾 Checkout Code
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
+    - name: ☁️ Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Install AWS CLI
-        run: |
-          pip install awscli
-          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set region eu-north-1
+    - name: ⬆️ Upload index.html to S3
+      run: |
+        aws s3 cp ./index.html s3://${{ secrets.S3_BUCKET_NAME }}/ \
+          --cache-control "max-age=0,no-cache,no-store,must-revalidate"
 
-      - name: Deploy to Lambda
-        run: |
-          zip function.zip lambda_function.py
-          aws lambda update-function-code --function-name storeBuoyData --zip-file fileb://function.zip
+    - name: 🌐 Invalidate CloudFront Cache
+      run: |
+        aws cloudfront create-invalidation \
+          --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID }} \
+          --paths "/*"
+
+    - name: 🛠️ Deploy all Lambda functions
+      run: |
+        for dir in lambdas/getBuoyData lambdas/storeBuoyData lambdas/AutoSubscribeToSNS; do
+          echo "🚀 Deploying $dir"
+          cd "$dir"
+
+          echo "📁 Listing contents of $(pwd):"
+          ls -alh
+
+          if [ -f lambda_function.py ]; then
+            zip -r function.zip lambda_function.py
+            aws lambda update-function-code \
+              --function-name "$(basename $dir)" \
+              --zip-file fileb://function.zip
+            echo "✅ $(basename $dir) deployed!"
+          else
+            echo "❌ lambda_function.py not found in $dir"
+            exit 1
+          fi
+
+          cd -
+        done
